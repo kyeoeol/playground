@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Footer Remake / claude.dev, pokemon, ditto</title>
+<!--
+  Footer remake: a full-window space scene with a pixel Ditto logo.
+  The logo is at the top left. Its eyes look at the pointer, and it melts on hover.
+  A Ditto in a space helmet follows the pointer. A click starts a shooting star.
+  Plain HTML, CSS, and JavaScript. No external resources.
+-->
+<style>
+:root{
+  color-scheme: light;
+  --page:#faf9f5;
+  --space-dot:#87867f; --space-shot:#d2cdbf;
+  --gutter:36px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --page:#141413;
+    --space-dot:#87867f; --space-shot:#a8a294;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --page:#141413;
+  --space-dot:#87867f; --space-shot:#a8a294;
+}
+@media (max-width:640px){ :root{ --gutter:27px; } }
+
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:var(--page)}
+
+/* Space scene: full window */
+.scene{position:relative;height:100vh;height:100dvh;overflow:hidden}
+.sky{position:absolute;inset:0;opacity:.7;pointer-events:none}
+.sky canvas{display:block;width:100%;height:100%}
+.astro-stage{position:absolute;inset:0;z-index:1;opacity:0;transition:opacity 1.4s ease}
+.astro-stage.on{opacity:1}
+.astro-stage canvas{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+
+/* Logo: top left of the scene */
+.brand{position:absolute;z-index:2;left:var(--gutter);top:36px;display:block;width:57px;height:45px;cursor:pointer}
+.brand svg{display:block;width:100%;height:100%;overflow:visible}
+.brand .eyes{transition:transform .12s}
+.brand .melt,.brand .melt > g{display:none}
+.brand.melting .idle{display:none}
+.brand.melting .melt,.brand .melt > g.on{display:inline}
+@media (max-width:640px){
+  .brand{top:19px;width:47.5px;height:37.5px}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .astro-stage,.brand .eyes{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true">
+  <div class="sky"></div>
+  <div class="astro-stage"></div>
+  <div class="brand">
+    <svg viewBox="0 0 19 15" shape-rendering="crispEdges">
+      <g class="idle">
+        <path fill="#141413" d="M5 0h3v1h-3zM4 1h5v1h-5zM10 1h3v1h-3zM4 2h10v1h-10zM1 3h16v1h-16zM0 4h18v2h-18zM1 6h16v1h-16zM2 7h15v2h-15zM1 9h17v1h-17zM0 10h19v3h-19zM1 13h17v1h-17zM2 14h4v1h-4zM9 14h8v1h-8z"/>
+        <path fill="#c58fd8" d="M5 1h3v1h-3zM5 2h4v1h-4zM10 2h3v1h-3zM4 3h10v1h-10zM1 4h16v2h-16zM2 6h14v1h-14zM3 7h4v1h-4zM12 7h4v1h-4zM3 8h13v1h-13zM2 9h15v1h-15zM1 10h17v3h-17zM2 13h4v1h-4zM9 13h8v1h-8z"/>
+        <g class="eyes" fill="#141413"><rect x="6" y="5" width="1" height="1"/><rect x="12" y="5" width="1" height="1"/></g>
+      </g>
+      <g class="melt">
+        <g data-k="a"><path fill="#141413" d="M4 2h4v1h-4zM3 3h6v1h-6zM10 3h3v1h-3zM3 4h12v1h-12zM0 5h18v1h-18zM-1 6h20v1h-20zM0 7h18v1h-18zM1 8h17v2h-17zM0 10h19v1h-19zM-1 11h21v2h-21zM0 13h19v1h-19zM1 14h5v1h-5zM9 14h9v1h-9z"/><path fill="#c58fd8" d="M4 3h4v1h-4zM4 4h5v1h-5zM10 4h3v1h-3zM3 5h12v1h-12zM0 6h6v1h-6zM7 6h5v1h-5zM13 6h5v1h-5zM1 7h16v1h-16zM2 8h5v1h-5zM12 8h5v1h-5zM2 9h15v1h-15zM1 10h17v1h-17zM0 11h19v2h-19zM1 13h5v1h-5zM9 13h9v1h-9z"/></g>
+        <g data-k="b"><path fill="#141413" d="M5 4h3v1h-3zM4 5h10v1h-10zM2 6h15v1h-15zM1 7h16v1h-16zM1 8h17v2h-17zM-1 10h21v2h-21zM-2 12h23v2h-23zM1 14h5v1h-5zM9 14h9v1h-9z"/><path fill="#c58fd8" d="M5 5h3v1h-3zM4 6h10v1h-10zM2 7h14v1h-14zM2 8h3v1h-3zM6 8h6v1h-6zM13 8h4v1h-4zM2 9h5v1h-5zM11 9h6v1h-6zM1 10h17v1h-17zM0 11h19v1h-19zM-1 12h21v1h-21zM1 13h5v1h-5zM9 13h9v1h-9z"/></g>
+        <g data-k="c"><path fill="#141413" d="M4 6h4v1h-4zM10 6h4v1h-4zM3 7h13v1h-13zM1 8h17v1h-17zM-1 9h21v1h-21zM-2 10h23v2h-23zM-3 12h25v3h-25z"/><path fill="#c58fd8" d="M4 7h4v1h-4zM10 7h4v1h-4zM3 8h13v1h-13zM1 9h3v1h-3zM6 9h6v1h-6zM14 9h4v1h-4zM-1 10h9v1h-9zM11 10h9v1h-9zM-1 11h21v1h-21zM-2 12h23v2h-23z"/></g>
+        <g data-k="d"><path fill="#141413" d="M4 7h3v1h-3zM11 7h3v1h-3zM1 8h17v1h-17zM-1 9h21v1h-21zM-2 10h23v1h-23zM-3 11h25v1h-25zM-4 12h27v3h-27z"/><path fill="#c58fd8" d="M4 8h3v1h-3zM11 8h3v1h-3zM1 9h17v1h-17zM-1 10h5v1h-5zM6 10h7v1h-7zM15 10h5v1h-5zM-2 11h10v1h-10zM10 11h11v1h-11zM-3 12h25v2h-25z"/></g>
+        <g data-k="e"><path fill="#141413" d="M3 8h4v1h-4zM11 8h4v1h-4zM-1 9h21v1h-21zM-3 10h25v1h-25zM-4 11h27v2h-27zM-5 13h29v2h-29z"/><path fill="#c58fd8" d="M3 9h4v1h-4zM11 9h4v1h-4zM-1 10h21v1h-21zM-3 11h6v1h-6zM5 11h8v1h-8zM15 11h7v1h-7zM-3 12h11v1h-11zM10 12h12v1h-12zM-4 13h27v1h-27z"/></g>
+        <g data-k="f"><path fill="#141413" d="M3 8h4v1h-4zM11 8h4v1h-4zM-2 9h23v1h-23zM-4 10h27v1h-27zM-5 11h29v2h-29zM-6 13h31v2h-31z"/><path fill="#c58fd8" d="M3 9h4v1h-4zM11 9h4v1h-4zM-2 10h23v1h-23zM-4 11h7v1h-7zM5 11h9v1h-9zM16 11h7v1h-7zM-4 12h12v1h-12zM10 12h13v1h-13zM-5 13h29v1h-29z"/></g>
+        <g data-k="g"><path fill="#141413" d="M5 4h8v1h-8zM2 5h14v1h-14zM3 6h13v2h-13zM2 8h15v1h-15zM1 9h17v1h-17zM-1 10h21v2h-21zM-2 12h23v1h-23zM-1 13h21v1h-21zM2 14h4v1h-4zM9 14h8v1h-8z"/><path fill="#c58fd8" d="M5 5h8v1h-8zM4 6h11v1h-11zM4 7h1v1h-1zM6 7h6v1h-6zM13 7h2v1h-2zM3 8h4v1h-4zM11 8h5v1h-5zM2 9h15v1h-15zM1 10h17v1h-17zM0 11h19v1h-19zM-1 12h21v1h-21zM2 13h4v1h-4zM9 13h8v1h-8z"/></g>
+        <g data-k="h"><path fill="#141413" d="M5 -2h3v1h-3zM5 -1h4v1h-4zM10 -1h3v1h-3zM5 0h9v1h-9zM2 1h14v1h-14zM1 2h16v3h-16zM2 5h14v1h-14zM3 6h13v2h-13zM2 8h15v1h-15zM1 9h17v4h-17zM2 13h15v1h-15zM3 14h3v1h-3zM9 14h7v1h-7z"/><path fill="#c58fd8" d="M6 -1h2v1h-2zM6 0h3v1h-3zM10 0h3v1h-3zM5 1h9v1h-9zM2 2h14v2h-14zM2 4h4v1h-4zM7 4h5v1h-5zM13 4h3v1h-3zM3 5h12v1h-12zM4 6h3v1h-3zM12 6h3v1h-3zM4 7h11v1h-11zM3 8h13v1h-13zM2 9h15v4h-15zM3 13h3v1h-3zM9 13h7v1h-7z"/></g>
+        <g data-k="i"><path fill="#141413" d="M5 1h3v1h-3zM4 2h5v1h-5zM10 2h3v1h-3zM4 3h10v1h-10zM0 4h18v1h-18zM-1 5h20v2h-20zM0 7h18v1h-18zM1 8h17v2h-17zM0 10h19v1h-19zM-1 11h21v2h-21zM0 13h19v1h-19zM1 14h5v1h-5zM9 14h9v1h-9z"/><path fill="#c58fd8" d="M5 2h3v1h-3zM5 3h4v1h-4zM10 3h3v1h-3zM4 4h10v1h-10zM0 5h18v1h-18zM0 6h6v1h-6zM7 6h5v1h-5zM13 6h5v1h-5zM1 7h16v1h-16zM2 8h5v1h-5zM12 8h5v1h-5zM2 9h15v1h-15zM1 10h17v1h-17zM0 11h19v2h-19zM1 13h5v1h-5zM9 13h9v1h-9z"/></g>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<script>
+/* ===== Logo ===== */
+(() => {
+  const brand = document.querySelector('.brand');
+
+  // The eyes look at the pointer: 3 columns, 4 rows
+  const eyes = brand.querySelector('.eyes');
+  const X = [-0.55, 0, 0.55], Y = [-0.5, -0.15, 0.2, 0.55];
+  let last = '';
+  document.addEventListener('pointermove', e => {
+    const r = brand.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const d = Math.sqrt(dx * dx + dy * dy) || 1, k = Math.min(1, d / 80);
+    const nx = (dx / d) * k, ny = (dy / d) * k;
+    const col = nx < -0.35 ? 0 : nx > 0.35 ? 2 : 1, row = Math.min(3, Math.floor((ny + 1) * 2));
+    const t = `translate(${X[col]}px,${Y[row]}px)`;
+    if (t !== last) { eyes.style.transform = t; last = t; }
+  }, { passive: true });
+
+  // On hover, the logo melts and comes back: 18 frames at 12 fps
+  const melt = brand.querySelector('.melt');
+  const frames = {};
+  Array.from(melt.children).forEach(g => { frames[g.getAttribute('data-k')] = g; });
+  const SEQ = ['a', 'a', 'b', 'c', 'd', 'd', 'e', 'e', 'f', 'f', 'f', 'f', 'f', 'f', 'g', 'h', 'a', 'i'];
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  const touch = matchMedia('(hover: none) and (pointer: coarse)');
+  let playing = false, moved = 0, cur = null;
+  document.addEventListener('pointermove', () => { moved = performance.now(); }, { passive: true });
+  const show = k => { if (cur) cur.classList.remove('on'); cur = frames[k]; cur.classList.add('on'); };
+  brand.addEventListener('mouseenter', () => {
+    if (playing || still.matches || touch.matches || performance.now() - moved > 400) return;
+    playing = true;
+    const t0 = performance.now();
+    let i = -1;
+    brand.classList.add('melting');
+    const tick = now => {
+      const n = Math.max(0, Math.floor(((now - t0) * 12) / 1000));
+      if (n >= SEQ.length) {
+        brand.classList.remove('melting');
+        if (cur) cur.classList.remove('on');
+        cur = null;
+        playing = false;
+        return;
+      }
+      if (n !== i) { i = n; show(SEQ[n]); }
+      requestAnimationFrame(tick);
+    };
+    tick(t0);
+  });
+})();
+
+/* ===== Space scene ===== */
+(() => {
+  const SP = 9, R1 = SP * 0.15, R2 = SP * 0.267;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const ease = v => { v = clamp(v, 0, 1); return v * v * (3 - 2 * v); };
+  function hash(i, j, k) {
+    let a = Math.imul(i, 0x27d4eb2d) ^ Math.imul(j, 0x165667b1) ^ Math.imul(k, 0x9e3779b1);
+    a = Math.imul(a ^ (a >>> 15), 0x85ebca6b);
+    a = Math.imul(a ^ (a >>> 13), 0xc2b2ae35);
+    return ((a ^ (a >>> 16)) >>> 0) / 4294967296;
+  }
+  function noise(x, y, k) {
+    const xi = Math.floor(x), yi = Math.floor(y), fx = ease(x - xi), fy = ease(y - yi);
+    const a = hash(xi, yi, k), b = hash(xi + 1, yi, k), c = hash(xi, yi + 1, k), d = hash(xi + 1, yi + 1, k);
+    const top = a + (b - a) * fx;
+    return top + (c + (d - c) * fx - top) * fy;
+  }
+  function drift(x, y, k, t) {
+    const ti = Math.floor(t), f = ease(t - ti);
+    const a = noise(x, y, k ^ Math.imul(ti, 0x632be5ab)), b = noise(x, y, k ^ Math.imul(ti + 1, 0x632be5ab));
+    return a + (b - a) * f;
+  }
+
+  // Ditto in a space helmet: 34 x 30 px sprite, 16 frames
+  const SPR_W = 34, SPR_H = 30, SPR_FPS = 10, PX = 3;
+  function makeSprites() {
+    const C = { k: '#141413', o: '#c58fd8', g: '#d1cfc4', w: '#faf9f4', y: '#f5db9a' };
+    const BODY = [[[5, 7]], [[4, 8], [10, 12]], [[4, 13]], [[1, 16]], [[0, 17]], [[0, 17]], [[1, 16]], [[2, 16]],
+                  [[2, 16]], [[1, 17]], [[0, 18]], [[0, 18]], [[0, 18]], [[1, 17]], [[2, 5], [9, 16]]];
+    const FACE = [[6, 5], [12, 5], [7, 7], [8, 7], [9, 7], [10, 7], [11, 7]];
+    const OX = 7, OY = 9, CX = OX + 9.5, CY = OY + 7.5;
+    const out = [];
+    for (let f = 0; f < 16; f++) {
+      const px = {};
+      const put = (x, y, c) => { if (x >= 0 && x < SPR_W && y >= 0 && y < SPR_H) px[y * SPR_W + x] = c; };
+      for (let y = 0; y < SPR_H; y++) for (let x = 0; x < SPR_W; x++) {
+        const dx = x + 0.5 - CX, dy = y + 0.5 - CY, d = Math.sqrt(dx * dx + dy * dy), a = Math.atan2(dy, dx) * 180 / Math.PI;
+        if (Math.abs(d - 12.6) < 0.62) put(x, y, 'g');
+        else if (d > 10.4 && d < 11.4 && a > -160 && a < -122) put(x, y, 'w');
+      }
+      const ph = f / 16 * 2 * Math.PI, c2 = Math.cos(2 * ph);
+      const dw = c2 > 0.55 ? 2 : c2 < -0.55 ? -2 : 0, dh = -dw / 2;
+      let rows = BODY.map(r => r.map(s => s.slice()));
+      const face = FACE.map(p => p.slice());
+      if (dh < 0) rows.splice(11, 1);
+      if (dh > 0) rows.splice(11, 0, rows[11].map(s => s.slice()));
+      if (dw) [15, 3].forEach(col => {
+        const k = dw > 0 ? 1 : -1;
+        rows = rows.map(r => r.map(s => [s[0] + (s[0] > col ? k : 0), s[1] + (s[1] >= col ? k : 0)])
+                               .filter(s => s[0] <= s[1]));
+        face.forEach(p => { if (p[0] > col) p[0] += k; });
+      });
+      const n = rows.length, lean = 1.6 * Math.sin(ph), ox = OX - dw / 2, oy = OY - dh, body = {};
+      const shift = rows.map((r, y) => Math.round(lean * Math.pow(Math.max(0, (n - 4 - y) / (n - 4)), 1.3)));
+      rows.forEach((r, y) => { r.forEach(s => { for (let x = s[0]; x <= s[1]; x++) body[(x + shift[y]) + ',' + y] = 1; }); });
+      Object.keys(body).forEach(key => {
+        const p = key.split(','), x = +p[0], y = +p[1];
+        const edge = !body[(x + 1) + ',' + y] || !body[(x - 1) + ',' + y] || !body[x + ',' + (y + 1)] || !body[x + ',' + (y - 1)];
+        put(x + ox, y + oy, edge ? 'k' : 'o');
+      });
+      face.forEach(p => { put(p[0] + shift[p[1]] + ox, p[1] + oy, 'k'); });
+      const sx = 30, sy = 4, s = [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 2, 1, 0, 0][f];
+      if (s >= 1) put(sx, sy, 'y');
+      if (s >= 2) { put(sx - 1, sy, 'y'); put(sx + 1, sy, 'y'); put(sx, sy - 1, 'y'); put(sx, sy + 1, 'y'); }
+      if (s >= 3) { put(sx - 2, sy, 'y'); put(sx + 2, sy, 'y'); put(sx, sy - 2, 'y'); put(sx, sy + 2, 'y'); put(sx, sy, 'w'); }
+      const cv = document.createElement('canvas');
+      cv.width = SPR_W; cv.height = SPR_H;
+      const g = cv.getContext('2d');
+      Object.keys(px).forEach(key => {
+        const n = +key;
+        g.fillStyle = C[px[n]];
+        g.fillRect(n % SPR_W, Math.floor(n / SPR_W), 1, 1);
+      });
+      out.push(cv);
+    }
+    return out;
+  }
+
+  const scene = document.querySelector('.scene');
+  const skyHost = scene.querySelector('.sky'), stage = scene.querySelector('.astro-stage'), brand = scene.querySelector('.brand');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SEED = (Math.random() * 4294967295) | 0;
+
+  const layer = host => {
+    const c = document.createElement('canvas');
+    c.setAttribute('aria-hidden', 'true');
+    host.appendChild(c);
+    return { c, ctx: c.getContext('2d'), w: 0, h: 0 };
+  };
+  const fit = L => {
+    const dpr = Math.min(2, devicePixelRatio || 1), r = scene.getBoundingClientRect();
+    L.w = r.width; L.h = r.height;
+    L.c.width = Math.max(1, Math.round(r.width * dpr));
+    L.c.height = Math.max(1, Math.round(r.height * dpr));
+    L.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    L.ctx.imageSmoothingEnabled = false;
+  };
+  const sky = layer(skyHost), act = layer(stage);
+
+  let dotColor = '#87867f', shotColor = '#d2cdbf';
+  const readColors = () => {
+    const cs = getComputedStyle(document.documentElement);
+    dotColor = cs.getPropertyValue('--space-dot').trim() || dotColor;
+    shotColor = cs.getPropertyValue('--space-shot').trim() || shotColor;
+  };
+
+  const sprites = makeSprites();
+
+  let cols = 0, rows = 0, ox = 0, oy = 0, logo = null;
+  let shape = new Int8Array(0), region = new Float32Array(0);
+  let hCull = new Float32Array(0), hStar = new Float32Array(0), hGap = new Float32Array(0), hGrain = new Float32Array(0);
+  const layout = () => {
+    fit(sky); fit(act); readColors();
+    // Logo box, in scene coordinates
+    const s = scene.getBoundingClientRect(), b = brand.getBoundingClientRect();
+    logo = { left: b.left - s.left, top: b.top - s.top, w: b.width, h: b.height };
+    const w = sky.w, h = sky.h, m = Math.min(w, h);
+    ox = (w % SP) / 2 + SP / 2; oy = (h % SP) / 2 + SP / 2;
+    cols = Math.max(0, Math.ceil((w - ox) / SP)); rows = Math.max(0, Math.ceil((h - oy) / SP));
+    const n = cols * rows;
+    shape = new Int8Array(n); region = new Float32Array(n);
+    hCull = new Float32Array(n); hStar = new Float32Array(n); hGap = new Float32Array(n); hGrain = new Float32Array(n);
+
+    // Crescent moon (top left)
+    const mr = Math.min(Math.max(52, 0.115 * m), 0.3 * m);
+    const mx = Math.max(0.14 * w, 1.1 * mr), my = Math.max(0.3 * h, 1.1 * mr);
+    const cutX = mx + 0.45 * mr, cutR = 0.92 * mr;
+    const mEdge = Math.max(0.12 * mr, 0.9 * SP), cEdge = Math.max(0.18 * cutR, 0.9 * SP);
+    // Ringed planet (bottom right)
+    const pr = Math.min(Math.max(60, 0.15 * m), 0.19 * m);
+    const pcx = 0.8 * w, pcy = h - 0.66 * pr;
+    const ra = 1.75 * pr, rb = 0.32 * pr, rc = Math.cos(0.32), rs = Math.sin(0.32);
+    const pEdge = Math.max(0.1 * pr, 0.9 * SP);
+
+    // 2 = large dot, 1 = small dot, 0 = empty, -1 = background (star field)
+    const shapeAt = (x, y, i, j) => {
+      const dx = x - mx, dy = y - my, d = Math.sqrt(dx * dx + dy * dy);
+      if (d < mr) {
+        const ex = x - cutX, dc = Math.sqrt(ex * ex + dy * dy);
+        if (dc >= cutR) return (mr - d > mEdge && dc - cutR > cEdge) ? 2 : 1;
+      }
+      if (d < 2.2 * mr) {
+        const q = d / mr;
+        if (q < 1.4 || hash(i, j, SEED ^ 0x3001) > ease((q - 1.4) / 0.8)) return 0;
+      }
+      const qx = x - pcx, qy = y - pcy, pd = Math.sqrt(qx * qx + qy * qy);
+      const u = rc * qx + rs * qy, v = -rs * qx + rc * qy;
+      const e = Math.sqrt((u / ra) * (u / ra) + (v / rb) * (v / rb));
+      const onRing = e > 0.8 && e < 1.2;
+      const ring = () => {
+        const t = Math.abs(u) / ra;
+        if (t > 0.9 && hash(i, j, SEED ^ 0x3002) < (t - 0.9) / 0.1 * 0.9) return 0;
+        return Math.abs(e - 1) < 0.16 ? 2 : 1;
+      };
+      if (onRing && v > 0) { const front = ring(); if (front) return front; }
+      if (v > 0 && pd < pr && e > 0.66 && e < 1.34) return 0;
+      if (pd < pr) {
+        const edge = 1 - pd / pr;
+        if (edge < 0.05 && hash(i, j, SEED ^ 0x3003) > Math.pow(edge / 0.05, 1.4)) return 0;
+        if (pr - pd < pEdge) return 1;
+        const lit = 0.5 * (-(qx / pr) * 0.28 - (qy / pr) * 0.82) + 0.5 + (noise(i / 3.1, j / 3.1, SEED ^ 0x3004) - 0.5) * 0.35;
+        return lit < 0.18 ? 0 : lit > 0.82 ? 2 : 1;
+      }
+      if (onRing) { const back = ring(); if (back) return back; }
+      const gap = Math.min(pd / (1.18 * pr), e / 1.24);
+      if (gap < 1.32 && (gap < 1 || hash(i, j, SEED ^ 0x3005) > ease((gap - 1) / 0.32))) return 0;
+      return -1;
+    };
+
+    for (let j = 0, idx = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++, idx++) {
+        shape[idx] = shapeAt(ox + i * SP, oy + j * SP, i, j);
+        region[idx] = noise(i / 8.4, j / 8.4, SEED ^ 0x11);
+        hCull[idx] = hash(i, j, SEED ^ 0x12);
+        hStar[idx] = hash(i, j, SEED ^ 0x13);
+        hGap[idx] = hash(i, j, SEED ^ 0x14);
+        hGrain[idx] = hash(i, j, SEED ^ 0x15);
+      }
+    }
+  };
+
+  // Distance from a rectangle, in grid cells
+  const cellsFrom = (x, y, r) => {
+    const ddx = Math.max(0, r.left - x, x - (r.left + r.w));
+    const ddy = Math.max(0, r.top - y, y - (r.top + r.h));
+    return Math.max(ddx, ddy) / SP;
+  };
+
+  /* Shooting star on click: 75% come in from a side edge and pass the click point, 25% start at the click point */
+  const shots = [];
+  const onClick = e => {
+    if (reduce) return;
+    const r = scene.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const speed = 400 + 220 * Math.random(), deg = Math.PI / 180;
+    let ang = (28 + 27 * Math.random()) * deg;
+    if (Math.random() < 0.75) {
+      const fromLeft = Math.random() < 0.5, sx = fromLeft ? -40 : r.width + 40, dist = Math.abs(x - sx);
+      if (y - Math.tan(ang) * dist < 10) ang = Math.max(12 * deg, Math.atan((y - 10) / dist));
+      shots.push({ x: sx, y: y - Math.tan(ang) * dist, vx: (fromLeft ? 1 : -1) * Math.cos(ang) * speed, vy: Math.sin(ang) * speed, t: 0, life: 2.4 });
+    } else {
+      shots.push({ x, y, vx: (Math.random() < 0.5 ? 1 : -1) * Math.cos(ang) * speed, vy: Math.sin(ang) * speed, t: 0, life: 1.6 });
+    }
+    wake();
+  };
+  const inRect = (x, y, r) => !!r && x > r.left - SP && x < r.left + r.w + SP && y > r.top - SP && y < r.top + r.h + SP;
+  const drawShots = (ctx, dt, rect) => {
+    const w = sky.w, h = sky.h;
+    ctx.beginPath();
+    for (let s = shots.length - 1; s >= 0; s--) {
+      const sh = shots[s];
+      sh.t += dt;
+      if (sh.t >= sh.life) { shots.splice(s, 1); continue; }
+      const fade = Math.min(1, sh.t / (0.25 * sh.life)) * Math.min(1, (sh.life - sh.t) / (0.4 * sh.life));
+      const hx = sh.x + sh.vx * sh.t, hy = sh.y + sh.vy * sh.t, sp = Math.hypot(sh.vx, sh.vy) || 1;
+      const ux = sh.vx / sp, uy = sh.vy / sp;
+      let lx = null, ly = null;
+      for (let k = 0; k < 9; k++) {
+        const gx = ox + Math.round((hx - ux * SP * k - ox) / SP) * SP, gy = oy + Math.round((hy - uy * SP * k - oy) / SP) * SP;
+        if (gx === lx && gy === ly) continue;
+        lx = gx; ly = gy;
+        if (gx < -20 || gx > w + 20 || gy < -20 || gy > h + 20 || inRect(gx, gy, rect)) continue;
+        const rad = (k === 0 ? R2 : R1 * (1 - k / 12)) * fade;
+        if (rad < 0.4) continue;
+        ctx.moveTo(gx + rad, gy); ctx.arc(gx, gy, rad, 0, 6.2832);
+      }
+    }
+    ctx.fillStyle = shotColor;
+    ctx.fill();
+  };
+
+  let T = 0;
+  const drawSky = (p, dt) => {
+    const ctx = sky.ctx, w = sky.w, h = sky.h, rect = actorRect();
+    ctx.clearRect(0, 0, w, h);
+    if (p > 0) {
+      const lo = 0.62 - p * 0.143, hi = lo + 0.23, shapesOn = p > 0.12;
+      ctx.beginPath();
+      for (let j = 0, idx = 0; j < rows; j++) {
+        const y = oy + j * SP, keep = 1.15 * p * (0.2 + 0.8 * y / h);
+        for (let i = 0; i < cols; i++, idx++) {
+          const x = ox + i * SP, k = shapesOn ? shape[idx] : -1;
+          if (k === 0) continue;
+          if (k < 0 && hCull[idx] > keep) continue;
+          // Keep the area around the helmet Ditto empty. Dots come back with distance
+          if (rect) {
+            const dd = cellsFrom(x, y, rect);
+            if (dd <= 7 && hGap[idx] > ease((dd - 1) / 6)) continue;
+          }
+          // Also keep a small area around the logo empty
+          if (logo) {
+            const dd = cellsFrom(x, y, logo);
+            if (dd <= 4 && hGap[idx] > ease((dd - 1) / 3)) continue;
+          }
+          let r;
+          if (k > 0) {
+            r = k === 2 ? R2 : R1;
+          } else {
+            const md = region[idx];
+            let nv;
+            if (md < 0.38) nv = drift(i / 9, j / 1.3, SEED ^ 0x33, T);
+            else if (md < 0.52) nv = drift(i / 1.3, j / 9, SEED ^ 0x44, T);
+            else if (md < 0.62) nv = drift((i + j) / 7, (i - j) / 1.4, SEED ^ 0x55, T);
+            else nv = drift(i / 2.6, j / 2.6, SEED ^ 0x66, T);
+            const env = drift(i / 5.3, j / 5.3, SEED ^ 0x22, 0.5 * T);
+            const val = (0.74 * nv + 0.2 * hGrain[idx]) * (0.12 + 1.15 * Math.pow(env, 1.5));
+            const st = hStar[idx];
+            if (val < lo) {
+              if (st > 0.988) { r = R1 * (0.7 + 25 * (st - 0.988)); } else continue;
+            } else {
+              const v = ease((val - lo) / (hi - lo));
+              r = 0.6 + (R2 - 0.6) * v;
+              if (st > 0.9985) r += 1.2 * (0.5 + 0.5 * v);
+              if (r < 0.45) continue;
+            }
+          }
+          ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.2832);
+        }
+      }
+      ctx.fillStyle = dotColor;
+      ctx.fill();
+    }
+    if (shots.length) drawShots(ctx, dt, rect);
+  };
+
+  /* Helmet Ditto: floats slowly to the pointer. With no pointer in the scene, it goes to the lower center */
+  const A = { x: 0.5, y: 0.58, vx: 0, vy: 0, tilt: 0, shown: false };
+  let ptr = null, clock = 0;
+  const onPtrMove = e => {
+    const r = stage.getBoundingClientRect();
+    ptr = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+  };
+  const onPtrLeave = () => { ptr = null; };
+  const stepActor = dt => {
+    let tx = ptr ? clamp(ptr.x, 0.1, 0.9) : 0.5, ty = ptr ? clamp(ptr.y, 0.12, 0.88) : 0.58;
+    tx += 0.028 * Math.sin(0.45 * clock) + 0.018 * Math.sin(0.19 * clock + 1.7);
+    ty += 0.045 * Math.sin(0.62 * clock + 0.8) + 0.03 * Math.sin(0.27 * clock + 2.4);
+    A.vx += ((tx - A.x) * 0.12 - 0.8 * A.vx) * dt;
+    A.vy += ((ty - A.y) * 0.12 - 0.8 * A.vy) * dt;
+    A.x += A.vx * dt; A.y += A.vy * dt;
+    A.tilt += (clamp(55 * A.vx, -8, 8) - A.tilt) * (1 - Math.exp(-4 * dt));
+  };
+  const actorRect = () => {
+    if (!A.shown) return null;
+    const sw = SPR_W * PX, sh = SPR_H * PX;
+    return { left: A.x * act.w - sw / 2, top: A.y * act.h - sh / 2, w: sw, h: sh };
+  };
+  const drawActor = () => {
+    const ctx = act.ctx;
+    ctx.clearRect(0, 0, act.w, act.h);
+    if (!A.shown) return;
+    const img = sprites[reduce ? 0 : Math.floor(clock * SPR_FPS) % sprites.length], sw = SPR_W * PX, sh = SPR_H * PX;
+    ctx.save();
+    ctx.translate(A.x * act.w, A.y * act.h);
+    ctx.rotate(A.tilt * Math.PI / 180);
+    if (!reduce) ctx.translate(0, 4 * Math.sin(1.1 * clock));
+    ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh);
+    ctx.restore();
+  };
+
+  // The scene fills the window, so this is 1 (fully visible) at once
+  const progress = () => {
+    const r = scene.getBoundingClientRect();
+    return clamp((innerHeight - r.top) / (0.85 * r.height), 0, 1);
+  };
+  const reveal = p => {
+    if (!A.shown && p > 0.25) { A.shown = true; stage.classList.add('on'); }
+  };
+
+  let visible = false, raf = 0, last = 0, lastSky = 0;
+  const frame = now => {
+    raf = 0;
+    if (!visible || document.hidden) { last = 0; return; }
+    const dt = last ? clamp((now - last) / 1000, 0.008, 0.05) : 0.016;
+    last = now;
+    clock += dt; T += 0.22 * dt;
+    const p = progress();
+    reveal(p);
+    if (A.shown) stepActor(dt);
+    if (shots.length || now - lastSky > 32) {
+      drawSky(p, lastSky ? Math.min(0.1, (now - lastSky) / 1000) : dt);
+      lastSky = now;
+    }
+    drawActor();
+    raf = requestAnimationFrame(frame);
+  };
+  const still = () => { const p = progress(); reveal(p); drawSky(p, 0); drawActor(); };
+  const wake = () => {
+    if (reduce) { still(); return; }
+    if (!raf && visible && !document.hidden) raf = requestAnimationFrame(frame);
+  };
+
+  layout();
+  new IntersectionObserver(entries => {
+    visible = entries[entries.length - 1].isIntersecting;
+    wake();
+  }).observe(scene);
+  new ResizeObserver(() => { layout(); if (reduce || !raf) still(); }).observe(scene);
+  scene.addEventListener('click', onClick);
+  // Listen on the whole scene, so the Ditto also follows the pointer over the logo
+  scene.addEventListener('pointermove', onPtrMove);
+  scene.addEventListener('pointerleave', onPtrLeave);
+  document.addEventListener('visibilitychange', wake);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); if (reduce) still(); });
+})();
+</script>
+</body>
+</html>
