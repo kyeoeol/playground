@@ -1,0 +1,58 @@
+:root {
+  --ink: #1b1d20;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+body[data-time='night'] { --ink: #eef2fa; }
+
+* { box-sizing: border-box; }
+/* Matches the midday sky the first frame draws, so the page doesn't flash before WebGL starts. */
+html, body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(#fdfdfb 15%, #e2e3e1); color: var(--ink); }
+canvas#scene { position: fixed; inset: 0; display: block; image-rendering: pixelated; cursor: grab; touch-action: none; opacity: 0; transition: opacity 0.4s ease-out; }
+canvas#scene.ready { opacity: 1; }
+canvas#scene:active { cursor: grabbing; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+button:focus-visible { outline: 2px solid #6fb1a0; outline-offset: 1px; }
+
+.title { position: fixed; top: 14px; left: 16px; margin: 0; padding: 7px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; letter-spacing: 0.01em; pointer-events: none; }
+
+/* Everything floating over the world shares the same frosted glass */
+.title, .sky-toggle, .panel {
+  color: #f2f5ef; background: rgba(46, 60, 52, 0.62);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
+}
+.sky-toggle { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: 44px; height: 44px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.sky-toggle:hover { background: rgba(46, 60, 52, 0.8); }
+.sky-toggle span { display: grid; place-items: center; }
+.sky-toggle .orb { width: 14px; height: 14px; }
+.sky-toggle .glyph { width: 18px; height: 18px; }
+
+.panel {
+  position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%);
+  width: min(460px, calc(100vw - 24px)); padding: 14px 18px 12px; border-radius: 14px;
+}
+.panel[hidden] { display: none; }
+.panel > header { display: flex; align-items: center; justify-content: space-between; }
+.panel h2 { margin: 0; font-size: 13px; font-weight: 600; }
+.panel .plain { padding: 4px 8px; border-radius: 999px; }
+.panel .plain:hover { background: rgba(255, 255, 255, 0.16); }
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 8px; }
+.column h3 { display: flex; justify-content: space-between; margin: 0; font-size: 11px; font-weight: 400; color: rgba(242, 245, 239, 0.66); }
+.clock { font-variant-numeric: tabular-nums; }
+.icon { height: 74px; display: flex; align-items: center; justify-content: center; }
+.orb { width: 22px; height: 22px; border-radius: 50%; background: #f7f6ef; box-shadow: 0 0 18px rgba(255, 252, 230, 0.8); display: block; }
+.orb-low { clip-path: inset(0 0 40% 0); background: #ffd2a0; }
+.glyph { width: 28px; height: 28px; color: #f7f6ef; }
+.glyph.wide { width: 52px; height: 38px; }
+.stepper { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.stepper button { font-size: 17px; line-height: 1; }
+.switch { position: relative; display: flex; align-items: center; justify-content: space-between; margin-top: 10px; font-size: 11px; color: rgba(242, 245, 239, 0.8); cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch i { position: relative; width: 30px; height: 16px; border-radius: 999px; background: rgba(255, 255, 255, 0.24); transition: background 0.15s; }
+.switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+.switch input:checked + i { background: #6fb1a0; }
+.switch input:checked + i::after { transform: translateX(14px); }
+.switch input:focus-visible + i { outline: 2px solid #fff; outline-offset: 1px; }
+.footnote { margin: 12px 0 0; font-size: 10.5px; color: rgba(242, 245, 239, 0.56); }
