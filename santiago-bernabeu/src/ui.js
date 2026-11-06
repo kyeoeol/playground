@@ -2,7 +2,6 @@ const ICONS = {
   sun: '<span class="orb"></span>',
   sunset: '<span class="orb orb-low"></span>',
   moon: '<svg viewBox="0 0 48 48" class="glyph"><path d="M31 6a18 18 0 1 0 11 27A15 15 0 0 1 31 6Z" fill="currentColor"/></svg>',
-  clear: '<span class="orb"></span>',
   cloud: '<svg viewBox="0 0 64 48" class="glyph wide"><path d="M18 40a12 12 0 0 1-2-24 16 16 0 0 1 31-1 12.5 12.5 0 0 1 1 25Z" fill="currentColor"/></svg>',
   rain: '<svg viewBox="0 0 64 48" class="glyph wide"><path d="M18 30a10 10 0 0 1-2-20 14 14 0 0 1 28-1 10.5 10.5 0 0 1 1 21Z" fill="currentColor"/><path d="M20 35l-2 7M32 35l-2 7M44 35l-2 7" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
 };
@@ -44,7 +43,6 @@ export class Ui {
       el.timeLabel.textContent = time.label;
       el.timeIcon.innerHTML = ICONS[time.icon];
       el.toggleIcon.innerHTML = ICONS[time.icon];
-      document.body.dataset.time = time.id;
     }
     const clockText = sky.clockText();
     if (shown.clock !== clockText) {

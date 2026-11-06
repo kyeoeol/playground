@@ -29,6 +29,13 @@ export const ROADS = [
   { w: 8, pts: [[152, diagonalZ(152)], [152, HALF]] },
 ];
 
+/** A road's endpoints, length and unit direction. */
+export function roadAxis(road) {
+  const [a, b] = road.pts;
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return { a, b, len, dx: (b[0] - a[0]) / len, dz: (b[1] - a[1]) / len };
+}
+
 function segmentDistance(px, pz, a, b) {
   const dx = b[0] - a[0], dz = b[1] - a[1];
   const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / (dx * dx + dz * dz)));

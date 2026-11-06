@@ -35,12 +35,34 @@ export function pixelTexture(canvas, { repeat = false } = {}) {
   return tex;
 }
 
+/** Adds a mesh spanning the world: it's always in view, so culling would only cost time. */
+export function addWorldMesh(scene, geometry, material, { cast = true, receive = true } = {}) {
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = cast;
+  mesh.receiveShadow = receive;
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
+}
+
+/** Adds one instance of `geometry` at each [x, y, z]. */
+export function addInstances(scene, geometry, material, points) {
+  const mesh = new THREE.InstancedMesh(geometry, material, points.length);
+  const m = new THREE.Matrix4();
+  points.forEach(([x, y, z], i) => mesh.setMatrixAt(i, m.makeTranslation(x, y, z)));
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
+}
+
 /**
  * Collects flat-shaded triangles into one non-indexed BufferGeometry.
  * Materials using this are DoubleSide, so winding only has to be self-consistent.
+ * A textured mesh keeps UVs and no vertex colours; any other keeps colours and no UVs.
  */
 export class MeshBuilder {
-  constructor() {
+  constructor({ textured = false } = {}) {
+    this.textured = textured;
     this.p = [];
     this.n = [];
     this.c = [];
@@ -57,8 +79,8 @@ export class MeshBuilder {
     for (const [v, t] of [[a, ua], [b, ub], [c, uc]]) {
       this.p.push(v[0], v[1], v[2]);
       this.n.push(nx, ny, nz);
-      this.c.push(col.r, col.g, col.b);
-      this.uv.push(t[0], t[1]);
+      if (this.textured) this.uv.push(t[0], t[1]);
+      else this.c.push(col.r, col.g, col.b);
     }
   }
 
@@ -119,8 +141,8 @@ export class MeshBuilder {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+    if (this.textured) g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+    else g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
     return g;
   }
 }

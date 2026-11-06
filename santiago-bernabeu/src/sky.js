@@ -3,14 +3,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HALF } from './constants.js';
 import { makeRng } from './core/builder.js';
 
-export const TIMES = [
+const TIMES = [
   { id: 'morning', label: 'Morning', hour: 7.5, icon: 'sun' },
   { id: 'day', label: 'Midday', hour: 12.5, icon: 'sun' },
   { id: 'sunset', label: 'Sunset', hour: 18.1, icon: 'sunset' },
   { id: 'night', label: 'Night', hour: 23, icon: 'moon' },
 ];
-export const WEATHERS = [
-  { id: 'clear', label: 'Clear', cloud: 0, rain: 0, icon: 'clear' },
+const WEATHERS = [
+  { id: 'clear', label: 'Clear', cloud: 0, rain: 0, icon: 'sun' },
   { id: 'cloudy', label: 'Cloudy', cloud: 0.75, rain: 0, icon: 'cloud' },
   { id: 'rain', label: 'Drizzle', cloud: 1, rain: 0.55, icon: 'rain' },
   { id: 'storm', label: 'Shower', cloud: 1, rain: 1, icon: 'rain' },
@@ -37,6 +37,18 @@ const KEYS = [
   k(24, '#a9c2ff', 1.6, '#86a0cc', '#55647e', 2.3, '#10162a', '#1c2740', '#cdd8f4', 0.9, 1),
 ];
 
+const COLOR_CHANNELS = ['sun', 'sky', 'gnd', 'top', 'bot', 'tint'];
+const NUMBER_CHANNELS = ['sunI', 'hemiI', 'sat', 'night'];
+
+const OVERCAST_GREY = new THREE.Color('#a7adb4');
+const RAIN_CLOUD = new THREE.Color('#7f8996');
+const CLOUD_COUNT = 7;
+const RAIN_COUNT = 1100;
+const SPLASH_COUNT = 260;
+const dummy = new THREE.Object3D();
+const sunDir = new THREE.Vector3();
+
+const { clamp, euclideanModulo, lerp } = THREE.MathUtils;
 const smooth = (a, b, dt, rate) => a + (b - a) * (1 - Math.exp(-dt * rate));
 
 export class Sky {
@@ -87,31 +99,28 @@ export class Sky {
     }
     const geo = mergeGeometries(parts);
     this.cloudMaterial = new THREE.MeshLambertMaterial({ color: '#ffffff' });
-    this.clouds = new THREE.InstancedMesh(geo, this.cloudMaterial, 7);
+    this.clouds = new THREE.InstancedMesh(geo, this.cloudMaterial, CLOUD_COUNT);
     this.clouds.castShadow = true;
     this.clouds.frustumCulled = false;
     this.cloudData = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < CLOUD_COUNT; i++) {
       this.cloudData.push({
         // These lanes drift behind the stadium on screen, so they never cover it from the diamond view.
         x: r.range(-HALF * 1.5, HALF * 1.5), z: r.range(-HALF, -80), y: r.range(125, 160),
-        scale: r.range(0.6, 0.95), speed: r.range(3, 7), threshold: i / 7,
+        scale: r.range(0.6, 0.95), speed: r.range(3, 7), threshold: i / CLOUD_COUNT,
       });
     }
     scene.add(this.clouds);
-    this.dummy = new THREE.Object3D();
   }
 
   buildRain(scene) {
     const r = makeRng(9);
-    this.rainCount = 1100;
     this.rainDrops = [];
-    const pos = new Float32Array(this.rainCount * 6);
-    for (let i = 0; i < this.rainCount; i++) {
+    for (let i = 0; i < RAIN_COUNT; i++) {
       this.rainDrops.push({ x: r.range(-HALF, HALF), z: r.range(-HALF, HALF), y: r.range(0, 170), v: r.range(150, 210) });
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RAIN_COUNT * 6), 3));
     this.rainLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#d7e6f2', transparent: true, opacity: 0.6, depthWrite: false }));
     this.rainLines.frustumCulled = false;
     this.rainLines.visible = false;
@@ -119,8 +128,7 @@ export class Sky {
     scene.add(this.rainLines);
 
     const splashGeo = new THREE.BufferGeometry();
-    this.splashCount = 260;
-    splashGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.splashCount * 3), 3));
+    splashGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SPLASH_COUNT * 3), 3));
     this.splashes = new THREE.Points(splashGeo, new THREE.PointsMaterial({ color: '#e7f1f8', size: 1, sizeAttenuation: false, transparent: true, opacity: 0.75, depthWrite: false }));
     this.splashes.frustumCulled = false;
     this.splashes.visible = false;
@@ -128,8 +136,13 @@ export class Sky {
     this.splashRng = makeRng(3);
   }
 
+  /** Clouds and rain move on their own, so the picture keeps changing while either is out. */
+  get animated() {
+    return this.clouds.visible || this.rainLines.visible;
+  }
+
   timeLabel() {
-    const h = ((this.targetHour % 24) + 24) % 24;
+    const h = euclideanModulo(this.targetHour, 24);
     let best = TIMES[0], bestDist = 99;
     for (const t of TIMES) {
       const d = Math.min(Math.abs(t.hour - h), 24 - Math.abs(t.hour - h));
@@ -139,7 +152,7 @@ export class Sky {
   }
 
   clockText() {
-    const h = ((this.hour % 24) + 24) % 24;
+    const h = euclideanModulo(this.hour, 24);
     const hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   }
@@ -160,29 +173,20 @@ export class Sky {
   }
 
   sample(hour) {
-    const h = ((hour % 24) + 24) % 24;
-    let a = KEYS[0], b = KEYS[1];
-    for (let i = 0; i < KEYS.length - 1; i++) {
-      if (h >= KEYS[i].hour && h <= KEYS[i + 1].hour) { a = KEYS[i]; b = KEYS[i + 1]; break; }
-    }
-    const t = (h - a.hour) / (b.hour - a.hour || 1);
+    const h = euclideanModulo(hour, 24);
+    const next = KEYS.findIndex((key) => key.hour > h);
+    const a = KEYS[next - 1], b = KEYS[next];
+    const t = (h - a.hour) / (b.hour - a.hour);
     const v = this.values;
-    for (const key of ['sun', 'sky', 'gnd', 'top', 'bot', 'tint']) v[key].copy(a[key]).lerp(b[key], t);
-    v.sunI = THREE.MathUtils.lerp(a.sunI, b.sunI, t);
-    v.hemiI = THREE.MathUtils.lerp(a.hemiI, b.hemiI, t);
-    v.sat = THREE.MathUtils.lerp(a.sat, b.sat, t);
-    v.night = THREE.MathUtils.lerp(a.night, b.night, t);
+    for (const key of COLOR_CHANNELS) v[key].copy(a[key]).lerp(b[key], t);
+    for (const key of NUMBER_CHANNELS) v[key] = lerp(a[key], b[key], t);
     return h;
   }
 
   update(dt) {
-    if (this.followDay) {
-      // One day lasts 24 minutes, so an in-game hour is one real minute.
-      this.targetHour += dt / 60;
-      this.hour = smooth(this.hour, this.targetHour, dt, 4);
-    } else {
-      this.hour = smooth(this.hour, this.targetHour, dt, 2.2);
-    }
+    // One day lasts 24 minutes, so an in-game hour is one real minute.
+    if (this.followDay) this.targetHour += dt / 60;
+    this.hour = smooth(this.hour, this.targetHour, dt, this.followDay ? 4 : 2.2);
     if (this.autoWeather) {
       this.weatherTimer -= dt;
       if (this.weatherTimer <= 0) {
@@ -195,33 +199,30 @@ export class Sky {
 
     const h = this.sample(this.hour);
     const v = this.values;
-    const grey = new THREE.Color('#a7adb4');
 
     // Light
     const dimSun = 1 - 0.62 * this.cloud - 0.2 * this.rain;
     this.sun.color.copy(v.sun);
     this.sun.intensity = v.sunI * Math.max(0.05, dimSun);
-    this.hemi.color.copy(v.sky).lerp(grey, this.cloud * 0.45);
+    this.hemi.color.copy(v.sky).lerp(OVERCAST_GREY, this.cloud * 0.45);
     this.hemi.groundColor.copy(v.gnd);
     this.hemi.intensity = v.hemiI * (1 - this.rain * 0.14);
 
-    let dir;
     if (h >= 5.5 && h <= 20.5) {
       const a = ((h - 5.5) / 15) * Math.PI;
       // Stays on the camera's left, so the two visible faces of every building differ in tone.
-      dir = new THREE.Vector3(Math.cos(a) * 0.6 - 0.15, 0.25 + Math.sin(a) * 0.62, 0.95);
+      sunDir.set(Math.cos(a) * 0.6 - 0.15, 0.25 + Math.sin(a) * 0.62, 0.95);
     } else {
       const moon = (h < 5.5 ? h + 24 : h) - 20.5;
-      dir = new THREE.Vector3(0.8 - (moon / 9) * 1.3, 0.95, 0.55);
+      sunDir.set(0.8 - (moon / 9) * 1.3, 0.95, 0.55);
     }
-    dir.normalize();
-    this.sun.position.copy(dir).multiplyScalar(620);
+    this.sun.position.copy(sunDir).normalize().multiplyScalar(620);
 
     // Post
     const u = this.post.uniforms;
     const overcast = this.cloud * (1 - v.night * 0.8);
-    u.bgTop.value.copy(v.top).lerp(grey, overcast * 0.45);
-    u.bgBottom.value.copy(v.bot).lerp(grey, overcast * 0.6);
+    u.bgTop.value.copy(v.top).lerp(OVERCAST_GREY, overcast * 0.45);
+    u.bgBottom.value.copy(v.bot).lerp(OVERCAST_GREY, overcast * 0.6);
     u.tint.value.copy(v.tint);
     u.saturation.value = v.sat * (1 - 0.18 * this.cloud);
     u.stars.value = Math.max(0, v.night - 0.4) * (1 - this.cloud) * 1.6;
@@ -231,30 +232,28 @@ export class Sky {
   }
 
   updateClouds(dt) {
-    const d = this.dummy;
-    const v = this.values;
-    // Clouds lit from the side read better than ones that pick up the full sun.
-    this.cloudMaterial.color.setRGB(1, 1, 1).lerp(new THREE.Color('#7f8996'), this.rain * 0.8);
     this.clouds.visible = this.cloud > 0.02;
     if (!this.clouds.visible) return;
+    // Clouds lit from the side read better than ones that pick up the full sun.
+    this.cloudMaterial.color.setRGB(1, 1, 1).lerp(RAIN_CLOUD, this.rain * 0.8);
+    this.cloudMaterial.emissive.copy(this.values.sky).multiplyScalar(0.12);
     this.cloudData.forEach((c, i) => {
       c.x += c.speed * dt * (1 + this.rain);
       if (c.x > HALF * 1.6) c.x = -HALF * 1.6;
-      const show = THREE.MathUtils.clamp((this.cloud - c.threshold * 0.8) * 4, 0, 1);
-      d.position.set(c.x, c.y, c.z);
-      d.scale.setScalar(Math.max(0.0001, c.scale * show));
-      d.updateMatrix();
-      this.clouds.setMatrixAt(i, d.matrix);
+      const show = clamp((this.cloud - c.threshold * 0.8) * 4, 0, 1);
+      dummy.position.set(c.x, c.y, c.z);
+      dummy.scale.setScalar(Math.max(0.0001, c.scale * show));
+      dummy.updateMatrix();
+      this.clouds.setMatrixAt(i, dummy.matrix);
     });
     this.clouds.instanceMatrix.needsUpdate = true;
-    this.cloudMaterial.emissive.copy(v.sky).multiplyScalar(0.12);
   }
 
   updateRain(dt) {
     const active = this.rain > 0.03;
     this.rainLines.visible = this.splashes.visible = active;
     if (!active) return;
-    const count = Math.floor(this.rainCount * this.rain);
+    const count = Math.floor(RAIN_COUNT * this.rain);
     const attr = this.rainLines.geometry.attributes.position;
     for (let i = 0; i < count; i++) {
       const drop = this.rainDrops[i];
@@ -267,7 +266,7 @@ export class Sky {
     this.rainLines.geometry.setDrawRange(0, count * 2);
     const splash = this.splashes.geometry.attributes.position;
     const r = this.splashRng;
-    const splashCount = Math.floor(this.splashCount * this.rain);
+    const splashCount = Math.floor(SPLASH_COUNT * this.rain);
     for (let i = 0; i < splashCount; i++) splash.setXYZ(i, r.range(-HALF, HALF), 0.4, r.range(-HALF, HALF));
     splash.needsUpdate = true;
     this.splashes.geometry.setDrawRange(0, splashCount);

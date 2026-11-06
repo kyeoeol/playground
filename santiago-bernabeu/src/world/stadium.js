@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MeshBuilder, makeCanvas, makeRng, pixelTexture, vertexMaterial } from '../core/builder.js';
+import { MeshBuilder, addInstances, addWorldMesh, makeCanvas, makeRng, pixelTexture, vertexMaterial } from '../core/builder.js';
 import { drawBitmapText, forEachBit, textBits } from '../core/pixelfont.js';
 
 // The bowl is lofted around a rounded rectangle: offsetting it outward along its
@@ -46,8 +46,6 @@ class Ring {
   constructor(dRef) {
     const sx = BASE.hx - BASE.r, sz = BASE.hz - BASE.r;
     const arc = (Math.PI / 2) * (BASE.r + dRef);
-    this.dRef = dRef;
-    this.arc = arc;
     this.parts = [
       { len: sz, line: [sx + BASE.r, 0, 0, 1], n: [1, 0] },
       { len: arc, center: [sx, sz], a0: 0 },
@@ -66,16 +64,13 @@ class Ring {
 
   /** Base-curve position and outward normal at arc-length s. */
   at(s) {
-    s = ((s % this.length) + this.length) % this.length;
-    for (const p of this.parts) {
-      if (s > p.s0 + p.len && p !== this.parts[this.parts.length - 1]) continue;
-      const t = s - p.s0;
-      if (p.line) return { x: p.line[0] + p.line[2] * t, z: p.line[1] + p.line[3] * t, nx: p.n[0], nz: p.n[1] };
-      const a = p.a0 + (t / p.len) * (Math.PI / 2);
-      const nx = Math.cos(a), nz = Math.sin(a);
-      return { x: p.center[0] + nx * BASE.r, z: p.center[1] + nz * BASE.r, nx, nz, cornerAngle: a - p.a0 };
-    }
-    return null;
+    s = THREE.MathUtils.euclideanModulo(s, this.length);
+    const p = this.parts.find((part) => s <= part.s0 + part.len) ?? this.parts.at(-1);
+    const t = s - p.s0;
+    if (p.line) return { x: p.line[0] + p.line[2] * t, z: p.line[1] + p.line[3] * t, nx: p.n[0], nz: p.n[1] };
+    const a = p.a0 + (t / p.len) * (Math.PI / 2);
+    const nx = Math.cos(a), nz = Math.sin(a);
+    return { x: p.center[0] + nx * BASE.r, z: p.center[1] + nz * BASE.r, nx, nz, cornerAngle: a - p.a0 };
   }
 
   point(s, d) {
@@ -83,12 +78,19 @@ class Ring {
     return [q.x + q.nx * d, q.z + q.nz * d];
   }
 
+  /** Corners, in loop order, of the strip from offset d0 at height h0 to d1 at h1, over s0..s1. */
+  strip(s0, s1, d0, h0, d1, h1) {
+    const [ax, az] = this.point(s0, d0), [bx, bz] = this.point(s1, d0);
+    const [cx, cz] = this.point(s1, d1), [dx, dz] = this.point(s0, d1);
+    return [[ax, h0, az], [bx, h0, bz], [cx, h1, cz], [dx, h1, dz]];
+  }
+
   /** Arc-length range of a straight part; index 6 is the far stand, 0/8 and 4 the ends. */
   part(index) { return this.parts[index]; }
 }
 
 /** Signed distance to the rounded-rectangle base curve (positive = outside it). */
-export function bowlDistance(x, z) {
+function bowlDistance(x, z) {
   const qx = Math.abs(x) - (BASE.hx - BASE.r), qz = Math.abs(z) - (BASE.hz - BASE.r);
   return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - BASE.r;
 }
@@ -117,13 +119,9 @@ export class Stadium {
     this.buildFlatStand();
     this.buildTowers();
 
-    const mesh = new THREE.Mesh(this.concrete.build(), vertexMaterial());
-    mesh.castShadow = mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
-    scene.add(mesh);
+    addWorldMesh(scene, this.concrete.build(), vertexMaterial());
 
     this.buildLights();
-    this.flood = 0;
   }
 
   // ---------------------------------------------------------------- seating
@@ -175,28 +173,20 @@ export class Stadium {
 
   buildStands() {
     const ring = this.standRing;
-    const stands = new MeshBuilder();
+    const stands = new MeshBuilder({ textured: true });
     const segs = Math.round(ring.length / 2.4);
     for (let i = 0; i < segs; i++) {
       const s0 = (i / segs) * ring.length, s1 = ((i + 1) / segs) * ring.length;
       const u0 = i / segs, u1 = (i + 1) / segs;
       for (const t of TIERS) {
-        const [ax, az] = ring.point(s0, t.d0), [bx, bz] = ring.point(s1, t.d0);
-        const [cx, cz] = ring.point(s1, t.d1), [dx, dz] = ring.point(s0, t.d1);
         const v0 = 1 - (t.row0 + t.rows) / STAND_ROWS, v1 = 1 - t.row0 / STAND_ROWS;
-        stands.quad([ax, t.h0, az], [bx, t.h0, bz], [cx, t.h1, cz], [dx, t.h1, dz], '#ffffff',
-          [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
+        stands.quad(...ring.strip(s0, s1, t.d0, t.h0, t.d1, t.h1), '#ffffff', [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
       }
       for (const band of STAND_BANDS) {
-        const [ax, az] = ring.point(s0, band.d0), [bx, bz] = ring.point(s1, band.d0);
-        const [cx, cz] = ring.point(s1, band.d1), [dx, dz] = ring.point(s0, band.d1);
-        this.concrete.quad([ax, band.h0, az], [bx, band.h0, bz], [cx, band.h1, cz], [dx, band.h1, dz], band.color);
+        this.concrete.quad(...ring.strip(s0, s1, band.d0, band.h0, band.d1, band.h1), band.color);
       }
     }
-    const mesh = new THREE.Mesh(stands.build(), new THREE.MeshLambertMaterial({ map: this.paintSeats(), side: THREE.DoubleSide }));
-    mesh.castShadow = mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
-    this.scene.add(mesh);
+    addWorldMesh(this.scene, stands.build(), new THREE.MeshLambertMaterial({ map: this.paintSeats(), side: THREE.DoubleSide }));
   }
 
   // ---------------------------------------------------------------- pitch
@@ -207,10 +197,9 @@ export class Stadium {
     const segs = 160;
     for (let i = 0; i < segs; i++) {
       const s0 = (i / segs) * ring.length, s1 = ((i + 1) / segs) * ring.length;
-      const [ax, az] = ring.point(s0, -4), [bx, bz] = ring.point(s1, -4);
-      const [cx, cz] = ring.point(s1, 0), [dx, dz] = ring.point(s0, 0);
-      this.concrete.quad([ax, y, az], [bx, y, bz], [cx, y, cz], [dx, y, dz], '#1b4d9b');
-      this.concrete.tri([0, y, 0], [ax, y, az], [bx, y, bz], '#2c6e36');
+      const corners = ring.strip(s0, s1, -4, y, 0, y);
+      this.concrete.quad(...corners, '#1b4d9b');
+      this.concrete.tri([0, y, 0], corners[0], corners[1], '#2c6e36');
     }
 
     const SCALE = 4;
@@ -223,13 +212,10 @@ export class Stadium {
     }
     this.paintLines(ctx, W, H, SCALE);
 
-    const b = new MeshBuilder();
+    const b = new MeshBuilder({ textured: true });
     const { hx, hz, y: py } = PITCH;
     b.quad([-hx, py, -hz], [-hx, py, hz], [hx, py, hz], [hx, py, -hz], '#ffffff', [[0, 1], [0, 0], [1, 0], [1, 1]]);
-    const mesh = new THREE.Mesh(b.build(), new THREE.MeshLambertMaterial({ map: pixelTexture(canvas), side: THREE.DoubleSide }));
-    mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
-    this.scene.add(mesh);
+    addWorldMesh(this.scene, b.build(), new THREE.MeshLambertMaterial({ map: pixelTexture(canvas), side: THREE.DoubleSide }), { cast: false });
 
     for (const sx of [-1, 1]) {
       const x = sx * (hx + 0.2);
@@ -242,15 +228,14 @@ export class Stadium {
   paintLines(ctx, W, H, S) {
     ctx.strokeStyle = '#eef3e6';
     ctx.lineWidth = 4;
-    const rectStroke = (x, y, w, h) => ctx.strokeRect(x, y, w, h);
-    rectStroke(2, 2, W - 4, H - 4);
+    ctx.strokeRect(2, 2, W - 4, H - 4);
     ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 9.15 * S, 0, Math.PI * 2); ctx.stroke();
     const boxD = 16.5 * S, boxW = 40.3 * S, smallD = 5.5 * S, smallW = 18.3 * S;
-    rectStroke(2, H / 2 - boxW / 2, boxD, boxW);
-    rectStroke(W - 2 - boxD, H / 2 - boxW / 2, boxD, boxW);
-    rectStroke(2, H / 2 - smallW / 2, smallD, smallW);
-    rectStroke(W - 2 - smallD, H / 2 - smallW / 2, smallD, smallW);
+    ctx.strokeRect(2, H / 2 - boxW / 2, boxD, boxW);
+    ctx.strokeRect(W - 2 - boxD, H / 2 - boxW / 2, boxD, boxW);
+    ctx.strokeRect(2, H / 2 - smallW / 2, smallD, smallW);
+    ctx.strokeRect(W - 2 - smallD, H / 2 - smallW / 2, smallD, smallW);
     ctx.beginPath(); ctx.arc(11 * S, H / 2, 9.15 * S, -0.92, 0.92); ctx.stroke();
     ctx.beginPath(); ctx.arc(W - 11 * S, H / 2, 9.15 * S, Math.PI - 0.92, Math.PI + 0.92); ctx.stroke();
   }
@@ -288,19 +273,16 @@ export class Stadium {
         }
 
         // Dark concourses behind, with a glazed plinth at street level.
-        const [wax, waz] = ring.point(s0, 49.5), [wbx, wbz] = ring.point(s1, 49.5);
-        b.quad([wax, 0, waz], [wbx, 0, wbz], [wbx, 5, wbz], [wax, 5, waz], k % 3 === 1 ? '#4d7a80' : '#669498');
-        b.quad([wax, 5, waz], [wbx, 5, wbz], [wbx, 31, wbz], [wax, 31, waz], '#24262a');
+        b.quad(...ring.strip(s0, s1, 49.5, 0, 49.5, 5), k % 3 === 1 ? '#4d7a80' : '#669498');
+        b.quad(...ring.strip(s0, s1, 49.5, 5, 49.5, 31), '#24262a');
 
-        const [oax, oaz] = ring.point(s0, 57), [obx, obz] = ring.point(s1, 57);
         for (const deck of [6.5, 13.5, 20.5]) {
-          b.quad([wax, deck, waz], [wbx, deck, wbz], [obx, deck, obz], [oax, deck, oaz], '#6d6c66');
-          b.quad([oax, deck - 1.3, oaz], [obx, deck - 1.3, obz], [obx, deck, obz], [oax, deck, oaz], '#bdbab0');
+          b.quad(...ring.strip(s0, s1, 49.5, deck, 57, deck), '#6d6c66');
+          b.quad(...ring.strip(s0, s1, 57, deck - 1.3, 57, deck), '#bdbab0');
         }
 
         // Thin lattice band under the vaults
-        const [lax, laz] = ring.point(s0, 57.5), [lbx, lbz] = ring.point(s1, 57.5);
-        b.quad([lax, 28, laz], [lbx, 28, lbz], [lbx, 30.6, lbz], [lax, 30.6, laz], k % 2 ? '#d6d4ca' : '#8c8c86');
+        b.quad(...ring.strip(s0, s1, 57.5, 28, 57.5, 30.6), k % 2 ? '#d6d4ca' : '#8c8c86');
       }
 
       // Paired pillars on every rib
@@ -418,7 +400,7 @@ export class Stadium {
 
   buildRoof() {
     const ring = this.roofRing;
-    const top = new MeshBuilder();
+    const top = new MeshBuilder({ textured: true });
     const under = this.concrete;
     const segs = Math.round(ring.length / 2.2);
     const span = ROOF.dOut - ROOF.dIn;
@@ -465,10 +447,7 @@ export class Stadium {
         THREE.ShaderChunk.map_fragment.replace('texture2D( map, vMapUv )', 'texture2D( map, vMapUv, -1.4 )'),
       );
     };
-    const mesh = new THREE.Mesh(top.build(), material);
-    mesh.castShadow = mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
-    this.scene.add(mesh);
+    addWorldMesh(this.scene, top.build(), material);
     this.buildCanopy();
   }
 
@@ -603,13 +582,8 @@ export class Stadium {
   // ---------------------------------------------------------------- lights
 
   buildLights() {
-    const geo = new THREE.BoxGeometry(2.8, 1, 1.4);
     this.lampMaterial = new THREE.MeshBasicMaterial({ color: '#50545a' });
-    const lamps = new THREE.InstancedMesh(geo, this.lampMaterial, this.floodlights.length);
-    const m = new THREE.Matrix4();
-    this.floodlights.forEach(([x, y, z], i) => lamps.setMatrixAt(i, m.makeTranslation(x, y, z)));
-    lamps.frustumCulled = false;
-    this.scene.add(lamps);
+    addInstances(this.scene, new THREE.BoxGeometry(2.8, 1, 1.4), this.lampMaterial, this.floodlights);
 
     this.pitchLight = new THREE.PointLight('#f4f7ff', 0, 170, 0);
     this.pitchLight.position.set(0, 46, 0);

@@ -23,24 +23,58 @@ const ui = new Ui(sky);
 
 attachCameraGestures(canvas, rig);
 
+let needsDraw = true;
+
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   pipeline.resize(w, h);
   rig.resize(pipeline.target.width, pipeline.target.height);
+  needsDraw = true; // resizing wipes the canvas
 }
 window.addEventListener('resize', resize);
 resize();
 
+const CLOUD_SHADOW_INTERVAL = 1 / 20; // clouds drift slowly enough that 20 updates a second looks smooth
+
 // The city is static, so the costly shadow pass only runs when the light or clouds move.
 const lastSun = new THREE.Vector3(Infinity, 0, 0);
-function shadowsDirty() {
-  const moved = lastSun.distanceToSquared(sky.sun.position) > 0.01;
-  lastSun.copy(sky.sun.position);
-  return moved || sky.clouds.visible;
+let cloudShadowsShown = false;
+let cloudShadowAge = 0;
+
+function shadowsDirty(dt) {
+  const sunMoved = lastSun.distanceToSquared(sky.sun.position) > 0.01;
+  if (sunMoved) lastSun.copy(sky.sun.position);
+  cloudShadowAge += dt;
+  // One more pass after the clouds fade, or their last shadows would stay on the ground.
+  const cloudsMoved = cloudShadowsShown !== sky.clouds.visible || (sky.clouds.visible && cloudShadowAge >= CLOUD_SHADOW_INTERVAL);
+  if (cloudsMoved) {
+    cloudShadowsShown = sky.clouds.visible;
+    cloudShadowAge = 0;
+  }
+  return sunMoved || cloudsMoved;
 }
+
+// A losing GPU context takes the canvas and the shadow map with it, so both need redrawing.
+canvas.addEventListener('webglcontextrestored', () => {
+  needsDraw = true;
+  lastSun.x = Infinity;
+});
 
 let previous = performance.now();
 let flood = 0;
+
+// Once the view, light and weather have settled the picture can't change, so nothing is redrawn.
+const SETTLED = 1e-4;
+let drawn = [];
+function sceneChanged() {
+  const state = [rig.az, rig.zoom, sky.hour, sky.cloud, sky.rain, flood];
+  const changed = needsDraw || sky.animated || state.some((value, i) => Math.abs(value - drawn[i]) >= SETTLED);
+  if (changed) {
+    drawn = state;
+    needsDraw = false;
+  }
+  return changed;
+}
 
 function frame() {
   // Moving to a screen with another pixel density doesn't always fire a resize event.
@@ -60,8 +94,10 @@ function frame() {
   lamps.update(night);
   ui.update();
 
-  pipeline.renderer.shadowMap.needsUpdate = shadowsDirty();
-  pipeline.render(scene, rig.camera);
+  if (sceneChanged()) {
+    pipeline.renderer.shadowMap.needsUpdate = shadowsDirty(dt);
+    pipeline.render(scene, rig.camera);
+  }
   requestAnimationFrame(frame);
 }
 frame();

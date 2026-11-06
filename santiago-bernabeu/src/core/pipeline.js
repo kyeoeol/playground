@@ -55,14 +55,15 @@ const fragmentShader = /* glsl */ `
     return sum / 16.0;
   }
 
+  const float BAYER4[16] = float[16](
+    0.0, 8.0, 2.0, 10.0,
+    12.0, 4.0, 14.0, 6.0,
+    3.0, 11.0, 1.0, 9.0,
+    15.0, 7.0, 13.0, 5.0
+  );
+
   float bayer4(vec2 p) {
-    int x = int(mod(p.x, 4.0));
-    int y = int(mod(p.y, 4.0));
-    int idx = x + y * 4;
-    if (idx == 0) return 0.0;   if (idx == 1) return 8.0;   if (idx == 2) return 2.0;   if (idx == 3) return 10.0;
-    if (idx == 4) return 12.0;  if (idx == 5) return 4.0;   if (idx == 6) return 14.0;  if (idx == 7) return 6.0;
-    if (idx == 8) return 3.0;   if (idx == 9) return 11.0;  if (idx == 10) return 1.0;  if (idx == 11) return 9.0;
-    if (idx == 12) return 15.0; if (idx == 13) return 7.0;  if (idx == 14) return 13.0; return 5.0;
+    return BAYER4[int(mod(p.x, 4.0)) + int(mod(p.y, 4.0)) * 4];
   }
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -113,12 +114,17 @@ export class PixelPipeline {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.BasicShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
-    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setClearColor(0x000000, 0);
 
+    this.target = new THREE.WebGLRenderTarget(1, 1, {
+      type: THREE.HalfFloatType,
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      depthTexture: new THREE.DepthTexture(1, 1),
+    });
     this.uniforms = {
-      tColor: { value: null },
-      tDepth: { value: null },
+      tColor: { value: this.target.texture },
+      tDepth: { value: this.target.depthTexture },
       resolution: { value: new THREE.Vector2(1, 1) },
       near: { value: 1 },
       far: { value: 2 },
@@ -155,18 +161,7 @@ export class PixelPipeline {
     this.renderer.setSize(w, h, false);
     this.renderer.domElement.style.width = `${(w * block) / dpr}px`;
     this.renderer.domElement.style.height = `${(h * block) / dpr}px`;
-    this.target?.depthTexture?.dispose();
-    this.target?.dispose();
-    this.target = new THREE.WebGLRenderTarget(w, h, {
-      type: THREE.HalfFloatType,
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
-      depthTexture: new THREE.DepthTexture(w, h, THREE.UnsignedIntType),
-    });
-    this.target.depthTexture.minFilter = THREE.NearestFilter;
-    this.target.depthTexture.magFilter = THREE.NearestFilter;
-    this.uniforms.tColor.value = this.target.texture;
-    this.uniforms.tDepth.value = this.target.depthTexture;
+    this.target.setSize(w, h);
     this.uniforms.resolution.value.set(w, h);
   }
 
@@ -175,7 +170,6 @@ export class PixelPipeline {
     this.uniforms.far.value = camera.far;
     this.uniforms.focusDistance.value = camera.position.length();
     this.renderer.setRenderTarget(this.target);
-    this.renderer.clear();
     this.renderer.render(scene, camera);
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.quadScene, this.quadCamera);

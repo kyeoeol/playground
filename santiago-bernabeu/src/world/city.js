@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HALF } from '../constants.js';
-import { MeshBuilder, makeCanvas, makeRng, pixelTexture, vertexMaterial } from '../core/builder.js';
+import { MeshBuilder, addWorldMesh, makeCanvas, makeRng, pixelTexture, vertexMaterial } from '../core/builder.js';
 import { BLOCKS, DIAGONAL_ROT, LANDMARK_ZONES, PLAZA, diagonalZ, roadClearance } from './plan.js';
 import { onStadium } from './stadium.js';
 
@@ -99,7 +99,6 @@ function paintFacade(style, seed) {
         for (let x = 0; x < SIZE; x += 4) glow(x, y, 3, 2, 0.28);
       }
       break;
-    default:
   }
   return { map: pixelTexture(canvas, { repeat: true }), emissiveMap: pixelTexture(lit.canvas, { repeat: true }) };
 }
@@ -113,9 +112,9 @@ class Frame {
     this.c = Math.cos(rot); this.s = Math.sin(rot);
   }
   p(lx, lz) { return [this.x + lx * this.c + lz * this.s, this.z - lx * this.s + lz * this.c]; }
-  inner(lx, lz, rot = 0) {
-    const [x, z] = this.p(lx, lz);
-    return new Frame(x, z, this.rot + rot);
+  /** The four corners of a rectangle centred at lx/lz, in loop order. */
+  corners(lx, lz, hw, hd) {
+    return [this.p(lx - hw, lz + hd), this.p(lx + hw, lz + hd), this.p(lx + hw, lz - hd), this.p(lx - hw, lz - hd)];
   }
 }
 
@@ -125,7 +124,7 @@ export class City {
     this.ground = ground;
     this.r = makeRng(2026);
     this.walls = {};
-    for (const key of Object.keys(STYLES)) this.walls[key] = new MeshBuilder();
+    for (const key of Object.keys(STYLES)) this.walls[key] = new MeshBuilder({ textured: true });
     this.detail = new MeshBuilder();
     this.courtyards = [];
 
@@ -147,15 +146,9 @@ export class City {
         map, emissiveMap, emissive: new THREE.Color('#ffffff'), emissiveIntensity: 0, side: THREE.DoubleSide,
       });
       this.materials.push(material);
-      const mesh = new THREE.Mesh(this.walls[key].build(), material);
-      mesh.castShadow = mesh.receiveShadow = true;
-      mesh.frustumCulled = false;
-      scene.add(mesh);
+      addWorldMesh(scene, this.walls[key].build(), material);
     });
-    const detail = new THREE.Mesh(this.detail.build(), vertexMaterial());
-    detail.castShadow = detail.receiveShadow = true;
-    detail.frustumCulled = false;
-    scene.add(detail);
+    addWorldMesh(scene, this.detail.build(), vertexMaterial());
   }
 
   /** Windows come on as the sky darkens. */
@@ -168,8 +161,7 @@ export class City {
   /** Four textured walls of a rectangular mass, centred at lx/lz in frame F. */
   mass(F, lx, lz, w, d, y0, y1, style) {
     const b = this.walls[style];
-    const hw = w / 2, hd = d / 2;
-    const c = [F.p(lx - hw, lz + hd), F.p(lx + hw, lz + hd), F.p(lx + hw, lz - hd), F.p(lx - hw, lz - hd)];
+    const c = F.corners(lx, lz, w / 2, d / 2);
     const lengths = [w, d, w, d];
     let run = this.r() * 8;
     for (let n = 0; n < 4; n++) {
@@ -183,9 +175,8 @@ export class City {
 
   /** Flat cap at height y, with an optional parapet and rooftop clutter. */
   flatRoof(F, lx, lz, w, d, y, color, { parapet = 1, lip = '#d6d0c0', clutter = true } = {}) {
-    const hw = w / 2, hd = d / 2;
-    const c = [F.p(lx - hw, lz + hd), F.p(lx + hw, lz + hd), F.p(lx + hw, lz - hd), F.p(lx - hw, lz - hd)];
-    const at = (n, yy) => [c[n][0], yy, c[n][1]];
+    const c = F.corners(lx, lz, w / 2, d / 2);
+    const at =(n, yy) => [c[n][0], yy, c[n][1]];
     this.detail.quad(at(0, y), at(1, y), at(2, y), at(3, y), color);
     if (parapet) {
       for (let n = 0; n < 4; n++) {
@@ -280,9 +271,8 @@ export class City {
   /** A dark band of shopfronts around the base of a mass. */
   shopfront(F, lx, lz, w, d) {
     const r = this.r;
-    const hw = w / 2 + 0.15, hd = d / 2 + 0.15;
-    const c = [F.p(lx - hw, lz + hd), F.p(lx + hw, lz + hd), F.p(lx + hw, lz - hd), F.p(lx - hw, lz - hd)];
-    const colors = ['#2f3338', '#3b4046', '#25282c', '#6d3d2d', '#4b6a6e'];
+    const c = F.corners(lx, lz, w / 2 + 0.15, d / 2 + 0.15);
+    const colors =['#2f3338', '#3b4046', '#25282c', '#6d3d2d', '#4b6a6e'];
     for (let n = 0; n < 4; n++) {
       const p = c[n], q = c[(n + 1) % 4];
       const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
@@ -404,8 +394,6 @@ export class City {
   }
 
   courtyard(F, lx, lz, w, d) {
-    const hw = w / 2, hd = d / 2;
-    const c = [F.p(lx - hw, lz + hd), F.p(lx + hw, lz + hd), F.p(lx + hw, lz - hd), F.p(lx - hw, lz - hd)];
     const roll = this.r();
     if (roll < 0.45) {
       // Single-storey annexes filling the yard, tiled or planted on top
@@ -415,7 +403,8 @@ export class City {
       this.occupy(F, lx, lz, w - 1, d - 1);
     } else {
       const y = 0.12;
-      this.detail.quad([c[0][0], y, c[0][1]], [c[1][0], y, c[1][1]], [c[2][0], y, c[2][1]], [c[3][0], y, c[3][1]], roll < 0.8 ? '#4f7c37' : '#b5ad9c');
+      const [c0, c1, c2, c3] = F.corners(lx, lz, w / 2, d / 2).map(([x, z]) => [x, y, z]);
+      this.detail.quad(c0, c1, c2, c3, roll < 0.8 ? '#4f7c37' : '#b5ad9c');
       const [x, z] = F.p(lx, lz);
       this.courtyards.push([x, z, Math.min(w, d) * 0.35]);
     }

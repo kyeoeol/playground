@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HALF } from '../constants.js';
-import { MeshBuilder, makeCanvas, makeRng, pixelTexture } from '../core/builder.js';
-import { COURT, PARKS, PLAZA, PLAZA_TREES, ROADS, ROUNDABOUT, diagonalZ } from './plan.js';
+import { MeshBuilder, addWorldMesh, makeCanvas, makeRng, pixelTexture } from '../core/builder.js';
+import { COURT, PARKS, PLAZA, PLAZA_TREES, ROADS, ROUNDABOUT, diagonalZ, roadAxis } from './plan.js';
 
 const TEX = HALF * 4; // ground canvas size: 2 texels per metre
 const toTex = (v) => (v + HALF) * (TEX / (HALF * 2));
@@ -163,11 +163,9 @@ export class Ground {
 
   paintMarkings(road) {
     const { ctx } = this;
-    const [a, b] = road.pts;
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const dx = (b[0] - a[0]) / len, dz = (b[1] - a[1]) / len;
+    const { a, b, dx, dz } = roadAxis(road);
     const nx = -dz, nz = dx;
-    const line = (offset, dash, color, width) => {
+    const line =(offset, dash, color, width) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
       ctx.setLineDash(dash);
@@ -253,7 +251,7 @@ export class Ground {
       ctx.fillRect(r() * W, 42 + r() * 26, 2 + r() * 5, 2 + r() * 2);
     }
     const tex = pixelTexture(canvas, { repeat: true });
-    const b = new MeshBuilder();
+    const b = new MeshBuilder({ textured: true });
     const depth = 58, count = 60, tooth = [0, 4, 2, 6];
     const side = (ax, az, bx, bz, offset) => {
       for (let n = 0; n < count; n++) {
@@ -270,8 +268,6 @@ export class Ground {
     side(HALF, HALF, HALF, -HALF, 140);
     side(HALF, -HALF, -HALF, -HALF, 280);
     side(-HALF, -HALF, -HALF, HALF, 420);
-    const mesh = new THREE.Mesh(b.build(), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
-    mesh.frustumCulled = false;
-    this.scene.add(mesh);
+    addWorldMesh(this.scene, b.build(), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }), { cast: false, receive: false });
   }
 }

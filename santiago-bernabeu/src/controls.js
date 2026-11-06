@@ -5,6 +5,7 @@ const DEG = Math.PI / 180;
 const FOV = 13; // a long lens: still reads as an isometric diamond, but with real depth
 const QUARTER = 90 * DEG;
 const DIAMOND = 45 * DEG;
+const SPAN = HALF * Math.SQRT2;
 
 /** Perspective orbit rig that always comes to rest on a diamond view of the slab. */
 export class CameraRig {
@@ -28,17 +29,17 @@ export class CameraRig {
     this.az += (this.targetAz - this.az) * k;
     this.zoom += (this.targetZoom - this.zoom) * k;
     const c = this.camera;
-    const span = HALF * Math.SQRT2;
     // Half-height needed to fit the diamond, its soil and the towers rising at the back.
-    const fit = Math.max((span * 1.08) / this.aspect, (span * 2 * Math.sin(this.el) + 95) * 0.6);
+    const fit = Math.max((SPAN * 1.08) / this.aspect, (SPAN * 2 * Math.sin(this.el) + 95) * 0.6);
     const distance = fit / Math.tan((FOV * DEG) / 2);
     c.aspect = this.aspect;
     c.zoom = this.zoom;
-    c.near = distance - span * 1.6;
-    c.far = distance + span * 1.6;
+    c.near = distance - SPAN * 1.6;
+    c.far = distance + SPAN * 1.6;
     c.updateProjectionMatrix();
-    const dir = new THREE.Vector3(Math.sin(this.az) * Math.cos(this.el), Math.sin(this.el), Math.cos(this.az) * Math.cos(this.el));
-    c.position.copy(this.target).addScaledVector(dir, distance);
+    c.position.set(Math.sin(this.az) * Math.cos(this.el), Math.sin(this.el), Math.cos(this.az) * Math.cos(this.el))
+      .multiplyScalar(distance)
+      .add(this.target);
     c.lookAt(this.target);
   }
 

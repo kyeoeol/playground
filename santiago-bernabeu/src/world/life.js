@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { MeshBuilder, makeRng, vertexMaterial } from '../core/builder.js';
+import { MeshBuilder, addInstances, addWorldMesh, makeRng, vertexMaterial } from '../core/builder.js';
 import { HALF } from '../constants.js';
-import { PARKS, PLAZA_LAMPS, PLAZA_TREES, ROADS, roadClearance } from './plan.js';
+import { PARKS, PLAZA_LAMPS, PLAZA_TREES, ROADS, roadAxis, roadClearance } from './plan.js';
 import { onStadium } from './stadium.js';
 
 const dummy = new THREE.Object3D();
 const colorTmp = new THREE.Color();
+const LEAF_COLORS = ['#5d9440', '#4f8538', '#6ba347', '#467a36', '#79ad4d'];
 
 // ------------------------------------------------------------------ trees
 
@@ -22,14 +23,14 @@ function makeTreeGeometry() {
       // One shade per facet: bright on top, deep in the underside.
       const mid = (pos.getY(i) + pos.getY(i + 1) + pos.getY(i + 2)) / 3;
       const t = THREE.MathUtils.clamp((mid - (y - r)) / (2 * r), 0, 1);
-      const v = 0.45 + t * 0.75;
-      for (let k = 0; k < 3; k++) colors.set([v, v, v], (i + k) * 3);
+      colors.fill(0.45 + t * 0.75, i * 3, (i + 3) * 3);
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     g.deleteAttribute('uv');
     return g;
   };
-  const trunk = new THREE.CylinderGeometry(0.4, 0.55, 3.4, 6).toNonIndexed();
+  // No end caps: the bottom sits on the ground and the top is buried in the foliage.
+  const trunk = new THREE.CylinderGeometry(0.4, 0.55, 3.4, 6, 1, true).toNonIndexed();
   trunk.translate(0, 1.7, 0);
   trunk.computeVertexNormals();
   trunk.setAttribute('color', new THREE.BufferAttribute(new Float32Array(trunk.attributes.position.count * 3).fill(0.26), 3));
@@ -54,7 +55,7 @@ export class Trees {
 
   add(x, z, scale) {
     const n = this.mesh.count++;
-    this.mesh.setColorAt(n, colorTmp.set(this.rng.pick(['#5d9440', '#4f8538', '#6ba347', '#467a36', '#79ad4d'])));
+    this.mesh.setColorAt(n, colorTmp.set(this.rng.pick(LEAF_COLORS)));
     dummy.position.set(x, 0, z);
     dummy.rotation.set(0, this.rng() * Math.PI * 2, 0);
     dummy.scale.setScalar(scale);
@@ -85,9 +86,7 @@ export class Trees {
   /** Street trees stand on the pavement, so they skip the tile checks used for parks. */
   streetRow(road) {
     const r = this.rng;
-    const [a, b] = road.pts;
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const dx = (b[0] - a[0]) / len, dz = (b[1] - a[1]) / len;
+    const { a, len, dx, dz } = roadAxis(road);
     const offset = road.w / 2 + 1.4;
     const spacing = road.w >= 14 ? 8 : 11;
     for (const side of road.median ? [-1, 0, 1] : [-1, 1]) {
@@ -132,51 +131,41 @@ export class Lamps {
   constructor(scene) {
     const spots = [...PLAZA_LAMPS];
     for (const road of ROADS) {
-      const [a, b] = road.pts;
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const nx = -(b[1] - a[1]) / len, nz = (b[0] - a[0]) / len;
+      const { a, len, dx, dz } = roadAxis(road);
       const off = road.w / 2 + 1;
       for (let t = 14, side = 1; t < len - 6; t += road.w >= 14 ? 30 : 44, side = -side) {
-        const x = a[0] + ((b[0] - a[0]) * t) / len + nx * off * side;
-        const z = a[1] + ((b[1] - a[1]) * t) / len + nz * off * side;
+        const x = a[0] + dx * t - dz * off * side;
+        const z = a[1] + dz * t + dx * off * side;
         if (Math.abs(x) < HALF && Math.abs(z) < HALF) spots.push([x, z]);
       }
     }
     const pole = new MeshBuilder();
     for (const [x, z] of spots) pole.box(x, 0, z, 0.55, 7, 0.55, '#3a3d42');
-    const poles = new THREE.Mesh(pole.build(), vertexMaterial());
-    poles.frustumCulled = false;
-    scene.add(poles);
+    addWorldMesh(scene, pole.build(), vertexMaterial(), { cast: false, receive: false });
 
-    const m = new THREE.Matrix4();
+    const at = (y) => spots.map(([x, z]) => [x, y, z]);
     this.headMaterial = new THREE.MeshBasicMaterial({ color: '#55585c' });
-    const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 0.8, 1.1), this.headMaterial, spots.length);
-    spots.forEach(([x, z], i) => heads.setMatrixAt(i, m.makeTranslation(x, 7.2, z)));
-    heads.frustumCulled = false;
-    scene.add(heads);
+    addInstances(scene, new THREE.BoxGeometry(1.1, 0.8, 1.1), this.headMaterial, at(7.2));
 
-    // Pools of light are additive decals on the street.
+    // Pools of light are additive decals on the street. A plain canvas on purpose: makeCanvas's
+    // CPU-backed one rasterises this gradient differently, which shows on the lit streets.
     const size = 64;
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const ctx = c.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
     const grad = ctx.createRadialGradient(size / 2, size / 2, 2, size / 2, size / 2, size / 2);
     grad.addColorStop(0, 'rgba(255,214,140,1)');
     grad.addColorStop(0.5, 'rgba(255,190,110,0.35)');
     grad.addColorStop(1, 'rgba(255,170,90,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
-    const tex = new THREE.CanvasTexture(c);
+    const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     this.glowMaterial = new THREE.MeshBasicMaterial({
       map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0,
     });
-    const glows = new THREE.InstancedMesh(new THREE.PlaneGeometry(20, 20).rotateX(-Math.PI / 2), this.glowMaterial, spots.length);
-    spots.forEach(([x, z], i) => glows.setMatrixAt(i, m.makeTranslation(x, 0.25, z)));
-    glows.frustumCulled = false;
-    glows.renderOrder = 3;
-    this.glows = glows;
-    scene.add(glows);
+    this.glows = addInstances(scene, new THREE.PlaneGeometry(20, 20).rotateX(-Math.PI / 2), this.glowMaterial, at(0.25));
+    this.glows.renderOrder = 3;
     this.off = new THREE.Color('#55585c');
     this.on = new THREE.Color('#fff0c0').multiplyScalar(1.6);
   }

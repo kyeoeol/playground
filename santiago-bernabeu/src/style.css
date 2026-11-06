@@ -1,13 +1,8 @@
-:root {
-  --ink: #1b1d20;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-}
-
-body[data-time='night'] { --ink: #eef2fa; }
+:root { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
 
 * { box-sizing: border-box; }
 /* Matches the midday sky the first frame draws, so the page doesn't flash before WebGL starts. */
-html, body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(#fdfdfb 15%, #e2e3e1); color: var(--ink); }
+html, body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(#fdfdfb 15%, #e2e3e1); }
 canvas#scene { position: fixed; inset: 0; display: block; image-rendering: pixelated; cursor: grab; touch-action: none; opacity: 0; transition: opacity 0.4s ease-out; }
 canvas#scene.ready { opacity: 1; }
 canvas#scene:active { cursor: grabbing; }
@@ -33,7 +28,6 @@ button:focus-visible { outline: 2px solid #6fb1a0; outline-offset: 1px; }
   position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%);
   width: min(460px, calc(100vw - 24px)); padding: 14px 18px 12px; border-radius: 14px;
 }
-.panel[hidden] { display: none; }
 .panel > header { display: flex; align-items: center; justify-content: space-between; }
 .panel h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .panel .plain { padding: 4px 8px; border-radius: 999px; }
