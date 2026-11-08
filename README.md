@@ -1,4 +1,4 @@
-# playground
+# Playground
 
 A playground for building small things.
 
