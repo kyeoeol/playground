@@ -1,0 +1,16 @@
+node_modules
+dist
+.playwright-mcp
+release
+
+# OS / editor
+.DS_Store
+*~
+
+# logs and local env
+*.log
+.env
+.env.*
+
+# Claude Code local settings
+.claude/settings.local.json

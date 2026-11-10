@@ -1,0 +1,77 @@
+{
+  "name": "chalet",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "app": "node tools/electron-dev.mjs",
+    "app:dist": "vite build && electron-builder --mac && rm -rf release/mac-arm64 release/*.yml release/*.yaml",
+    "icon": "node tools/make-icon.mjs"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "three": "^0.187.0",
+    "vite": "^8.3.6"
+  },
+  "description": "Chalet: a pixel-art ski village for your coding sessions",
+  "main": "electron/main.js",
+  "build": {
+    "appId": "com.beta.chalet",
+    "productName": "Chalet Beta",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json"
+    ],
+    "electronLanguages": [
+      "en"
+    ],
+    "afterPack": "tools/after-pack.cjs",
+    "afterAllArtifactBuild": "tools/after-dmg.cjs",
+    "mac": {
+      "category": "public.app-category.games",
+      "icon": "build/icon.icns",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "artifactName": "Chalet.${ext}",
+      "title": "Chalet",
+      "background": "build/background.png",
+      "iconSize": 100,
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 140,
+          "y": 150
+        },
+        {
+          "x": 400,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "writeUpdateInfo": false
+    }
+  }
+}
